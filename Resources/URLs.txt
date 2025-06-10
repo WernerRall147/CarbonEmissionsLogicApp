@@ -1,0 +1,4 @@
+https://learn.microsoft.com/en-us/rest/api/carbon/carbon-service/query-carbon-emission-data-available-date-range?view=rest-carbon-2025-04-01&tabs=HTTP
+https://learn.microsoft.com/en-us/rest/api/carbon/carbon-service/query-carbon-emission-reports?view=rest-carbon-2025-04-01&tabs=HTTP
+https://learn.microsoft.com/en-us/answers/questions/2279058/not-able-to-get-carbon-emission-data-using-query-c
+https://learn.microsoft.com/en-us/azure/carbon-optimization/api-export-data?tabs=OverallSummaryReport

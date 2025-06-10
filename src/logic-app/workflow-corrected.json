@@ -1,0 +1,341 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "subscriptionIds": {
+      "type": "Array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Array of subscription IDs to export carbon emissions data for"
+      }
+    },
+    "storageAccountName": {
+      "type": "String",
+      "metadata": {
+        "description": "Name of the storage account for CSV exports"
+      }
+    },
+    "containerName": {
+      "type": "String",
+      "defaultValue": "carbon-emissions-reports",
+      "metadata": {
+        "description": "Container name for storing CSV files"
+      }
+    },
+    "carbonApiVersion": {
+      "type": "String",
+      "defaultValue": "2025-04-01",
+      "metadata": {
+        "description": "API version for Carbon Optimization APIs"
+      }
+    }
+  },
+  "triggers": {
+    "monthlyRecurrence": {
+      "type": "Recurrence",
+      "recurrence": {
+        "frequency": "Month",
+        "interval": 1,
+        "schedule": {
+          "monthDays": [20],
+          "hours": [0],
+          "minutes": [0]
+        },
+        "timeZone": "UTC"
+      }
+    }
+  },
+  "actions": {
+    "initializeCurrentMonth": {
+      "type": "InitializeVariable",
+      "inputs": {
+        "variables": [
+          {
+            "name": "currentMonth",
+            "type": "String",
+            "value": "@formatDateTime(utcNow(), 'yyyy-MM-01')"
+          }
+        ]
+      },
+      "runAfter": {}
+    },
+    "initializePreviousMonth": {
+      "type": "InitializeVariable",
+      "inputs": {
+        "variables": [
+          {
+            "name": "previousMonth",
+            "type": "String", 
+            "value": "@formatDateTime(addToTime(utcNow(), -1, 'Month'), 'yyyy-MM-01')"
+          }
+        ]
+      },
+      "runAfter": {
+        "initializeCurrentMonth": ["Succeeded"]
+      }
+    },
+    "initializeMonthYearLabel": {
+      "type": "InitializeVariable",
+      "inputs": {
+        "variables": [
+          {
+            "name": "monthYearLabel",
+            "type": "String",
+            "value": "@formatDateTime(addToTime(utcNow(), -1, 'Month'), 'MMMyyyy')"
+          }
+        ]
+      },
+      "runAfter": {
+        "initializePreviousMonth": ["Succeeded"]
+      }
+    },
+    "initializePast12MonthsStart": {
+      "type": "InitializeVariable",
+      "inputs": {
+        "variables": [
+          {
+            "name": "past12MonthsStart",
+            "type": "String",
+            "value": "@formatDateTime(addToTime(utcNow(), -12, 'Month'), 'yyyy-MM-01')"
+          }
+        ]
+      },
+      "runAfter": {
+        "initializeMonthYearLabel": ["Succeeded"]
+      }
+    },
+    "checkDataAvailability": {
+      "type": "Http",
+      "inputs": {
+        "method": "POST",
+        "uri": "https://management.azure.com/providers/Microsoft.Carbon/queryCarbonEmissionDataAvailableDateRange",
+        "queries": {
+          "api-version": "@parameters('carbonApiVersion')"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "authentication": {
+          "type": "ManagedServiceIdentity",
+          "audience": "https://management.azure.com/"
+        }
+      },
+      "runAfter": {
+        "initializePast12MonthsStart": ["Succeeded"]
+      }
+    },
+    "parseAvailabilityResponse": {
+      "type": "ParseJson",
+      "inputs": {
+        "content": "@body('checkDataAvailability')",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "startDate": {
+              "type": "string"
+            },
+            "endDate": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "runAfter": {
+        "checkDataAvailability": ["Succeeded"]
+      }
+    },
+    "querySubscriptionEmissions": {
+      "type": "Http",
+      "inputs": {
+        "method": "POST",
+        "uri": "https://management.azure.com/providers/Microsoft.Carbon/carbonEmissionReports",
+        "queries": {
+          "api-version": "@parameters('carbonApiVersion')"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "reportType": "ItemDetailReport",
+          "subscriptionList": "@parameters('subscriptionIds')",
+          "carbonScopeList": ["Scope1", "Scope2", "Scope3"],
+          "dateRange": {
+            "start": "@variables('previousMonth')",
+            "end": "@variables('previousMonth')"
+          },
+          "categoryType": "Subscription",
+          "orderBy": "totalCarbonEmission",
+          "sortDirection": "Desc",
+          "pageSize": 1000
+        },
+        "authentication": {
+          "type": "ManagedServiceIdentity",
+          "audience": "https://management.azure.com/"
+        },
+        "retryPolicy": {
+          "type": "Fixed",
+          "count": 3,
+          "interval": "PT1M"
+        }
+      },
+      "runAfter": {
+        "parseAvailabilityResponse": ["Succeeded"]
+      }
+    },
+    "transformSubscriptionData": {
+      "type": "Select",
+      "inputs": {
+        "from": "@body('querySubscriptionEmissions').value",
+        "select": {
+          "Subscription_Name": "@item().itemName",
+          "Subscription_Id": "@item().subscriptionId", 
+          "Latest_Month_Emissions_kgCO2E": "@item().totalCarbonEmission",
+          "Previous_Month_Emissions_kgCO2E": "@item().totalCarbonEmissionLastMonth"
+        }
+      },
+      "runAfter": {
+        "querySubscriptionEmissions": ["Succeeded"]
+      }
+    },
+    "createSubscriptionCSV": {
+      "type": "Table",
+      "inputs": {
+        "from": "@body('transformSubscriptionData')",
+        "format": "CSV"
+      },
+      "runAfter": {
+        "transformSubscriptionData": ["Succeeded"]
+      }
+    },
+    "queryMonthlyTrends": {
+      "type": "Http",
+      "inputs": {
+        "method": "POST",
+        "uri": "https://management.azure.com/providers/Microsoft.Carbon/carbonEmissionReports",
+        "queries": {
+          "api-version": "@parameters('carbonApiVersion')"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "reportType": "MonthlySummaryReport",
+          "subscriptionList": "@parameters('subscriptionIds')",
+          "carbonScopeList": ["Scope1", "Scope2", "Scope3"],
+          "dateRange": {
+            "start": "@variables('past12MonthsStart')",
+            "end": "@variables('previousMonth')"
+          }
+        },
+        "authentication": {
+          "type": "ManagedServiceIdentity",
+          "audience": "https://management.azure.com/"
+        },
+        "retryPolicy": {
+          "type": "Fixed",
+          "count": 3,
+          "interval": "PT1M"
+        }
+      },
+      "runAfter": {
+        "parseAvailabilityResponse": ["Succeeded"]
+      }
+    },
+    "transformTrendsData": {
+      "type": "Select",
+      "inputs": {
+        "from": "@body('queryMonthlyTrends').value",
+        "select": {
+          "Month": "@formatDateTime(item().date, 'MMM yyyy')",
+          "TotalEmissions": "@item().latestMonthEmissions",
+          "Scope1": "0",
+          "Scope2": "0", 
+          "Scope3": "@item().latestMonthEmissions",
+          "CarbonIntensity": "@item().carbonIntensity"
+        }
+      },
+      "runAfter": {
+        "queryMonthlyTrends": ["Succeeded"]
+      }
+    },
+    "createTrendsCSV": {
+      "type": "Table",
+      "inputs": {
+        "from": "@body('transformTrendsData')",
+        "format": "CSV"
+      },
+      "runAfter": {
+        "transformTrendsData": ["Succeeded"]
+      }
+    },
+    "uploadSubscriptionCSV": {
+      "type": "Http",
+      "inputs": {
+        "method": "PUT",
+        "uri": "https://@{parameters('storageAccountName')}.blob.core.windows.net/@{parameters('containerName')}/EmissionDetails-Subscription-@{variables('monthYearLabel')}.csv",
+        "headers": {
+          "Content-Type": "text/csv",
+          "x-ms-blob-type": "BlockBlob"
+        },
+        "body": "@body('createSubscriptionCSV')",
+        "authentication": {
+          "type": "ManagedServiceIdentity",
+          "audience": "https://storage.azure.com/"
+        },
+        "retryPolicy": {
+          "type": "Fixed",
+          "count": 3,
+          "interval": "PT30S"
+        }
+      },
+      "runAfter": {
+        "createSubscriptionCSV": ["Succeeded"]
+      }
+    },
+    "uploadTrendsCSV": {
+      "type": "Http", 
+      "inputs": {
+        "method": "PUT",
+        "uri": "https://@{parameters('storageAccountName')}.blob.core.windows.net/@{parameters('containerName')}/EmissionTrends-@{variables('monthYearLabel')}.csv",
+        "headers": {
+          "Content-Type": "text/csv",
+          "x-ms-blob-type": "BlockBlob"
+        },
+        "body": "@body('createTrendsCSV')",
+        "authentication": {
+          "type": "ManagedServiceIdentity",
+          "audience": "https://storage.azure.com/"
+        },
+        "retryPolicy": {
+          "type": "Fixed",
+          "count": 3,
+          "interval": "PT30S"
+        }
+      },
+      "runAfter": {
+        "createTrendsCSV": ["Succeeded"]
+      }
+    },
+    "notifySuccess": {
+      "type": "Compose",
+      "inputs": {
+        "message": "Carbon emissions export completed successfully",
+        "timestamp": "@utcNow()",
+        "subscriptionCSV": "EmissionDetails-Subscription-@{variables('monthYearLabel')}.csv",
+        "trendsCSV": "EmissionTrends-@{variables('monthYearLabel')}.csv",
+        "container": "@parameters('containerName')",
+        "storageAccount": "@parameters('storageAccountName')"
+      },
+      "runAfter": {
+        "uploadSubscriptionCSV": ["Succeeded"],
+        "uploadTrendsCSV": ["Succeeded"]
+      }
+    }
+  },
+  "outputs": {
+    "executionSummary": {
+      "type": "Object",
+      "value": "@body('notifySuccess')"
+    }
+  }
+}

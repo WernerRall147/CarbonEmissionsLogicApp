@@ -1,0 +1,28 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "projectName": {
+      "value": "carbon-emissions"
+    },
+    "environmentName": {
+      "value": "dev"
+    },
+    "location": {
+      "value": "East US 2"
+    },    "subscriptionIds": {
+      "value": []
+    },
+    "scheduleDay": {
+      "value": 20
+    },    "storageAccountName": {
+      "value": ""
+    },
+    "containerName": {
+      "value": "carbon-emissions-reports"
+    },
+    "carbonApiVersion": {
+      "value": "2025-04-01"
+    }
+  }
+}
