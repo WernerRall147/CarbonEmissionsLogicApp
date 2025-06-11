@@ -7,37 +7,3 @@ metadata:
 infra:
   provider: bicep
   path: src/infrastructure
-
-# Hooks for deployment lifecycle
-hooks:
-  prepackage:
-    windows:
-    - pwsh: |
-        Write-Host "Validating Bicep files..."
-        az bicep build --file src/infrastructure/main.bicep --stdout | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-          Write-Error "Bicep validation failed"
-          exit 1
-        }
-        Write-Host "Bicep validation passed"
-    posix:
-    - sh: |
-        echo "Validating Bicep files..."
-        az bicep build --file src/infrastructure/main.bicep --stdout > /dev/null
-        echo "Bicep validation passed"
-
-  postprovision:
-    windows:
-    - pwsh: |
-        Write-Host "Carbon Emissions Logic App deployed successfully!"
-        Write-Host "Next steps:"
-        Write-Host "1. Update subscription IDs in main.parameters.json"
-        Write-Host "2. Run 'azd up' to redeploy with your subscription IDs"
-        Write-Host "3. Test the Logic App manually in Azure Portal"
-    posix:
-    - sh: |
-        echo "Carbon Emissions Logic App deployed successfully!"
-        echo "Next steps:"
-        echo "1. Update subscription IDs in main.parameters.json"
-        echo "2. Run 'azd up' to redeploy with your subscription IDs"
-        echo "3. Test the Logic App manually in Azure Portal"

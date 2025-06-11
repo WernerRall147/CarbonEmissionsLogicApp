@@ -84,9 +84,8 @@ Before deployment, update `src/infrastructure/main.parameters.json`:
 {
   "parameters": {
     "subscriptionIds": {
-      "value": [
-        "12345678-1234-1234-1234-123456789012",
-        "87654321-4321-4321-4321-210987654321"
+      "value": [        "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy"
       ]
     },
     "environmentName": {

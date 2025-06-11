@@ -1,144 +1,190 @@
-# Carbon Emissions Logic App - Technical Tracking Document
+# Carbon Emissions Logic App - Technical Documentation
 
 ## Project Overview
-Building an Azure Logic App to automatically extract Azure Carbon Optimization emissions data on a monthly schedule and save as CSV files in Azure Blob Storage.
+Automated Azure Logic App solution for monthly carbon emissions data export from Azure Carbon Optimization APIs to CSV files in Azure Blob Storage.
 
-**Start Date:** June 10, 2025  
-**Project Repository:** c:\Users\weral\Git\CarbonEmissionsLogicApp  
+## 🏗️ Architecture
 
-## Project Structure
+### Components
+- **Logic App (Consumption)**: Monthly workflow automation
+- **Storage Account**: Secure CSV file storage with managed identity
+- **RBAC Integration**: Carbon Optimization Reader + Storage Blob Data Contributor
+- **Azure Developer CLI**: Infrastructure as Code deployment
+
+### Security Model
+- **Managed Identity**: System-assigned, no stored credentials
+- **Least Privilege**: Minimal required permissions
+- **Azure AD Authentication**: All API calls use managed identity tokens
+
+## 📁 Project Structure
 ```
 CarbonEmissionsLogicApp/
-├── README.md (existing - project documentation)
-├── TECHNICAL_TRACKING.md (this file)
-├── LICENSE (existing)
-├── Resources/ (existing - documentation)
-├── src/ (to be created)
-│   ├── logic-app/ (Logic App workflow definitions)
-│   ├── infrastructure/ (Bicep/ARM templates)
-│   └── scripts/ (deployment scripts)
-└── docs/ (additional documentation)
+├── README.md                      # Main documentation
+├── QUICKSTART.md                  # 3-step deployment guide
+├── TECHNICAL_TRACKING.md          # This file
+├── azure.yaml                     # Azure Developer CLI config
+├── src/
+│   ├── logic-app/                 # Workflow definitions
+│   │   ├── workflow.json          # Original workflow
+│   │   └── workflow-corrected.json # Updated workflow
+│   ├── infrastructure/            # Bicep templates
+│   │   ├── main.bicep            # Main infrastructure template
+│   │   └── main.parameters.json  # Deployment parameters
+│   └── scripts/                   # Deployment scripts
+│       └── Deploy-CarbonEmissionsLogicApp.ps1
+├── docs/
+│   └── deployment-guide.md        # Detailed deployment guide
+└── Resources/                     # API documentation PDFs
 ```
 
-## Implementation Plan
+## 🚀 Deployment Methods
 
-### Phase 1: Project Setup ✅
-- [x] Create technical tracking document
-- [x] Create folder structure
-- [x] Set up infrastructure templates
-- [x] Create Logic App workflow definition
+### Primary: Azure Developer CLI (Recommended)
+```bash
+azd up
+```
 
-### Phase 2: Logic App Development ✅
-- [x] Create workflow definition JSON
-- [x] Configure recurrence trigger (monthly on 20th)
-- [x] Add HTTP actions for Carbon APIs
-- [x] Implement data transformation (JSON to CSV)
-- [x] Configure blob storage integration
-- [x] Add error handling and logging
+### Alternative: PowerShell Script
+```powershell
+.\src\scripts\Deploy-CarbonEmissionsLogicApp.ps1
+```
 
-### Phase 3: Infrastructure as Code ✅
-- [x] Create Bicep template for resources
-- [x] Include Storage Account with container
-- [x] Configure Logic App with managed identity
-- [x] Set up RBAC role assignments
-- [x] Create deployment scripts
+### Manual: Azure CLI
+See [deployment guide](docs/deployment-guide.md) for step-by-step instructions.
 
-### Phase 4: Testing & Deployment 🔄
-- [ ] Deploy to Azure for testing
-- [ ] Validate API calls and permissions
-- [ ] Test CSV generation and blob storage
-- [ ] Verify error handling
-- [ ] Document final deployment steps
+## 📊 Workflow Design
 
-## Changes Log
+### Trigger
+- **Schedule**: Monthly on 20th at midnight UTC
+- **Reason**: Carbon data typically available by 19th of month
 
-### 2025-06-10
-**10:XX AM** - Project initialization
-- Created TECHNICAL_TRACKING.md for change tracking
-- Analyzed README.md requirements
-- Planning folder structure and implementation approach
+### Data Flow
+1. **Date Range Check** (Optional): Validate data availability
+2. **Subscription Report**: ItemDetailReport for current subscriptions
+3. **Trend Report**: MonthlySummaryReport for 12-month history
+4. **CSV Transform**: JSON to CSV with portal-matching format
+5. **Blob Upload**: Store files with timestamp naming
 
-**Key Requirements Identified:**
-1. Monthly recurrence trigger (20th of each month)
-2. Two main API calls:
-   - queryCarbonEmissionDataAvailableDateRange (optional validation)
-   - carbonEmissionReports (ItemDetailReport & MonthlySummaryReport)
-3. JSON to CSV transformation with specific column mappings
-4. Azure Blob Storage integration with managed identity
-5. Comprehensive error handling and retry policies
+### Error Handling
+- **Retry Policies**: Exponential backoff for transient failures
+- **Date Adjustment**: Automatically handles data lag (uses 2-month offset)
+- **Logging**: All actions logged in Azure Monitor
 
-**API Endpoints:**
-- Date Range: POST https://management.azure.com/providers/Microsoft.Carbon/queryCarbonEmissionDataAvailableDateRange?api-version=2025-04-01
-- Reports: POST https://management.azure.com/providers/Microsoft.Carbon/carbonEmissionReports?api-version=2025-04-01
+## 🔧 Configuration
 
-**Required RBAC Roles:**
-- Carbon Optimization Reader (fa0d39e6-28e5-40cf-8521-1eb320653a4c)
-- Storage Blob Data Contributor (ba92f5b4-2d11-453d-a403-e96b0029c9fe)
+### Required Parameters
+- `subscriptionIds`: Array of target subscription IDs
+- `location`: Azure region for deployment
+- `scheduleDay`: Day of month to run (default: 20)
 
-**11:XX AM** - Core Infrastructure Development
-- ✅ Created folder structure (src/, docs/, logic-app/, infrastructure/, scripts/)
-- ✅ Developed Logic App workflow definition (workflow-corrected.json)
-- ✅ Created comprehensive Bicep template (main.bicep) with:
-  - Storage Account with secure configuration
-  - Logic App with system-assigned managed identity
-  - Blob container for CSV storage
-  - RBAC role assignments for proper permissions
-  - Complete workflow definition embedded in Bicep
-- ✅ Created parameters file (main.parameters.json)
-- ✅ Created Azure Developer CLI configuration (azure.yaml)
-- ✅ Developed PowerShell deployment script (Deploy-CarbonEmissionsLogicApp.ps1)
-- ✅ Created comprehensive deployment guide documentation
+### Auto-Generated
+- `storageAccountName`: Unique name based on resource group
+- `containerName`: `carbon-emissions-reports`
+- `resourceToken`: Unique identifier for naming
 
-**Files Created:**
-1. `TECHNICAL_TRACKING.md` - This tracking document
-2. `src/logic-app/workflow-corrected.json` - Logic App workflow definition
-3. `src/infrastructure/main.bicep` - Main Bicep template with all resources
-4. `src/infrastructure/main.parameters.json` - Deployment parameters
-5. `azure.yaml` - Azure Developer CLI configuration
-6. `src/scripts/Deploy-CarbonEmissionsLogicApp.ps1` - PowerShell deployment script
-7. `docs/deployment-guide.md` - Comprehensive deployment documentation
+## 📄 Output Files
 
-**Architecture Implemented:**
-- **Security**: Managed identity authentication, no stored secrets
-- **Storage**: Standard_LRS storage account with Azure AD auth only
-- **Logic App**: Consumption tier with monthly recurrence trigger
-- **RBAC**: Automated role assignments for Carbon API and Storage access
-- **Monitoring**: Built-in retry policies and error handling
+### File Naming Convention
+- **Subscription Details**: `EmissionDetails-Subscription-{MonthYear}.csv`
+- **Trends**: `EmissionTrends-{MonthYear}.csv`
+- **MonthYear Format**: `Apr2025` (3-letter month + year)
 
-**Deployment Options Available:**
-1. Azure Developer CLI: `azd up` (simplest)
-2. PowerShell script: `Deploy-CarbonEmissionsLogicApp.ps1`
-3. Manual Azure CLI deployment
+### CSV Schema
+**Subscription Details:**
+```csv
+Subscription_Name,Subscription_Id,Latest_Month_Emissions_kgCO2E,Previous_Month_Emissions_kgCO2E
+```
 
-## Technical Decisions
+**Trends:**
+```csv
+Month,TotalEmissions,Scope1,Scope2,Scope3,CarbonIntensity
+```
 
-### Logic App Type
-- **Decision:** Use Consumption Logic App for simplicity and one-click deployment
-- **Rationale:** Easier to embed full definition in ARM template vs Standard which requires separate App Service plan
+## 🛠️ Development History
 
-### Authentication
-- **Decision:** System-assigned Managed Identity
-- **Rationale:** No stored secrets, automatic token management, easier RBAC assignment
+### Phase 1: Planning & Setup ✅
+- Project structure design
+- API analysis and documentation review
+- Security and RBAC planning
 
-### Storage Approach
-- **Decision:** Azure Blob Storage with managed identity authentication
-- **Rationale:** Secure, scalable, supports both connector and REST API approaches
+### Phase 2: Core Development ✅
+- Logic App workflow creation with full error handling
+- Bicep infrastructure template with managed identity
+- Azure Developer CLI integration
 
-### CSV Format
-Following portal export format:
-- **Subscription Details:** Subscription_Name, Subscription_Id, Latest_Month_Emissions_kgCO2E, Previous_Month_Emissions_kgCO2E
-- **Trends:** Month, TotalEmissions, Scope1, Scope2, Scope3, CarbonIntensity
+### Phase 3: Deployment & Testing ✅
+- Successful deployment to Azure
+- RBAC configuration automation
+- Date range issue resolution (API data lag)
 
-## Issues & Resolutions
+### Phase 4: Documentation & Production Readiness ✅
+- GitHub-ready documentation
+- Removed confidential information
+- Production-ready configuration
 
-*To be updated as issues arise during implementation*
+## 🔍 Technical Decisions
 
-## Resources & References
+### Logic App Type: Consumption
+**Rationale**: Easier ARM template integration, monthly schedule suitable for consumption model
 
-- [Azure Logic Apps Documentation](https://docs.microsoft.com/en-us/azure/logic-apps/)
-- [Azure Carbon Optimization API](https://docs.microsoft.com/en-us/rest/api/carbon/)
-- [Logic Apps Managed Identity](https://docs.microsoft.com/en-us/azure/logic-apps/create-managed-service-identity)
-- [Azure RBAC Built-in Roles](https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles)
+### Authentication: System-Assigned Managed Identity
+**Rationale**: No credential management, automatic token handling, easier RBAC
+
+### Date Strategy: Conservative Offset
+**Rationale**: Carbon API has 2-3 month data lag, using -2 months ensures data availability
+
+### Storage: Azure Blob with RBAC
+**Rationale**: Secure, auditable, integrates with managed identity
+
+## 🐛 Known Issues & Solutions
+
+### Date Range API Errors
+**Issue**: Carbon API availability lags current date  
+**Solution**: Use 2-month offset instead of 1-month
+
+### CLI Command Compatibility
+**Issue**: Logic App CLI commands vary by Azure CLI version  
+**Solution**: Use REST API calls for monitoring and triggering
+
+### Cross-Subscription RBAC
+**Issue**: Bicep templates can't assign roles across subscriptions  
+**Solution**: Post-deployment Azure CLI role assignments
+
+## 📈 Monitoring & Maintenance
+
+### Health Checks
+- **Logic App Run History**: Monitor for failures
+- **Blob Storage**: Verify monthly file creation
+- **RBAC Permissions**: Ensure roles remain assigned
+
+### Troubleshooting
+- Check run history in Azure Portal
+- Validate Carbon API data availability dates
+- Verify managed identity permissions
+
+## 🔗 Resource Links
+
+- **Logic App Portal**: Available in azd environment values
+- **Storage Account**: Available in azd environment values  
+- **API Documentation**: [Azure Carbon Optimization REST API](https://docs.microsoft.com/en-us/rest/api/carbon/)
+- **RBAC Reference**: [Azure Built-in Roles](https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles)
 
 ---
-*Last Updated: June 10, 2025*
+
+## 🎯 Production Status: ✅ DEPLOYED & OPERATIONAL
+
+**Current Environment**: Management subscription  
+**Next Scheduled Run**: 20th of next month at midnight UTC  
+**Monitoring**: Azure Portal Logic App run history
+
+### Post-Deployment Validation Checklist
+- [x] Infrastructure deployed successfully
+- [x] Logic App workflow active
+- [x] Managed identity configured
+- [x] RBAC permissions assigned
+- [x] Storage container created
+- [x] Manual test execution completed
+- [x] Date range logic corrected
+- [x] Documentation completed
+
+**Solution is production-ready for automated monthly carbon emissions reporting! 🌱**

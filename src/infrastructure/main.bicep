@@ -6,7 +6,7 @@ param projectName string = 'carbon-emissions'
 @description('Environment name (dev, test, prod)')
 @allowed([
   'dev'
-  'test' 
+  'test'
   'prod'
 ])
 param environmentName string = 'dev'
@@ -25,7 +25,7 @@ param scheduleDay int = 20
 @description('Storage account name for CSV exports (must be globally unique)')
 @minLength(3)
 @maxLength(24)
-param storageAccountName string = 'st${projectName}${environmentName}${uniqueString(resourceGroup().id)}'
+param storageAccountName string = 'st${uniqueString(resourceGroup().id)}'
 
 @description('Container name for storing CSV files')
 param containerName string = 'carbon-emissions-reports'
@@ -162,7 +162,7 @@ resource logicApp 'Microsoft.Logic/workflows@2019-05-01' = {
               {
                 name: 'previousMonth'
                 type: 'String'
-                value: '@formatDateTime(addToTime(utcNow(), -1, \'Month\'), \'yyyy-MM-01\')'
+                value: '@formatDateTime(addToTime(utcNow(), -2, \'Month\'), \'yyyy-MM-01\')'
               }
             ]
           }
@@ -175,7 +175,7 @@ resource logicApp 'Microsoft.Logic/workflows@2019-05-01' = {
               {
                 name: 'monthYearLabel'
                 type: 'String'
-                value: '@formatDateTime(addToTime(utcNow(), -1, \'Month\'), \'MMMyyyy\')'
+                value: '@formatDateTime(addToTime(utcNow(), -2, \'Month\'), \'MMMyyyy\')'
               }
             ]
           }
@@ -190,7 +190,7 @@ resource logicApp 'Microsoft.Logic/workflows@2019-05-01' = {
               {
                 name: 'past12MonthsStart'
                 type: 'String'
-                value: '@formatDateTime(addToTime(utcNow(), -12, \'Month\'), \'yyyy-MM-01\')'
+                value: '@formatDateTime(addToTime(utcNow(), -14, \'Month\'), \'yyyy-MM-01\')'
               }
             ]
           }
@@ -198,7 +198,7 @@ resource logicApp 'Microsoft.Logic/workflows@2019-05-01' = {
             initializeMonthYearLabel: ['Succeeded']
           }
         }
-        
+
         // Data availability check
         checkDataAvailability: {
           type: 'Http'
@@ -415,22 +415,17 @@ resource storageRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-
   scope: storageAccount
   name: guid(storageAccount.id, logicApp.id, 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe') // Storage Blob Data Contributor
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
+    ) // Storage Blob Data Contributor
     principalId: logicApp.identity.principalId
-    principalType: 'ServicePrincipal'
-  }
+    principalType: 'ServicePrincipal'  }
 }
 
-// RBAC: Grant Logic App Carbon Optimization Reader role on target subscriptions
-resource carbonRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for subscriptionId in subscriptionIds: {
-  scope: subscription(subscriptionId)
-  name: guid(subscriptionId, logicApp.id, 'fa0d39e6-28e5-40cf-8521-1eb320653a4c')
-  properties: {
-    roleDefinitionId: subscriptionResourceId(subscriptionId, 'Microsoft.Authorization/roleDefinitions', 'fa0d39e6-28e5-40cf-8521-1eb320653a4c') // Carbon Optimization Reader
-    principalId: logicApp.identity.principalId
-    principalType: 'ServicePrincipal'
-  }
-}]
+// Note: Cross-subscription RBAC assignments need to be configured manually
+// Grant the Logic App's managed identity "Carbon Optimization Reader" role 
+// on each target subscription using Azure Portal or CLI
 
 // Outputs
 @description('Logic App resource ID')
